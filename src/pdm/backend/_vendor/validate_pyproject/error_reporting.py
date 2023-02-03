@@ -24,7 +24,7 @@ _SKIP_DETAILS = (
     "must not be there",
 )
 
-_NEED_DETAILS = {"anyOf", "oneOf", "anyOf", "contains", "propertyNames", "not", "items"}
+_NEED_DETAILS = {"oneOf", "anyOf", "contains", "propertyNames", "not", "items"}
 
 _CAMEL_CASE_SPLITTER = re.compile(r"\W+|([A-Z][^A-Z\W]*)")
 _IDENTIFIER = re.compile(r"^[\w_]+$", re.I)
@@ -130,8 +130,9 @@ class _ErrorFormatting:
     def _expand_details(self) -> str:
         optional = []
         desc_lines = self.ex.definition.pop("$$description", [])
-        desc = self.ex.definition.pop("description", None) or " ".join(desc_lines)
-        if desc:
+        if desc := self.ex.definition.pop("description", None) or " ".join(
+            desc_lines
+        ):
             description = "\n".join(
                 wrap(
                     desc,
@@ -205,8 +206,7 @@ class _SummaryWriter:
             return self._handle_list(schema, prefix, _path)
 
         filtered = self._filter_unecessary(schema, _path)
-        simple = self._handle_simple_dict(filtered, _path)
-        if simple:
+        if simple := self._handle_simple_dict(filtered, _path):
             return f"{prefix}{simple}"
 
         child_prefix = self._child_prefix(prefix, "  ")
@@ -289,9 +289,7 @@ class _SummaryWriter:
             norm_key = _separate_terms(key)
             return self._terms.get(key) or " ".join(self._jargon(norm_key))
 
-        if parents[-1] == "patternProperties":
-            return f"(regex {key!r})"
-        return repr(key)  # property name
+        return f"(regex {key!r})" if parents[-1] == "patternProperties" else repr(key)
 
     def _value(self, value: Any, path: Sequence[str]) -> str:
         if path[-1] == "type" and not self._is_property(path):

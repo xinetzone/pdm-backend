@@ -43,18 +43,17 @@ builder.call_hook("pdm_build_update_setup_kwargs", context, setup_kwargs)
 
 def _format_list(data: list[str], indent: int = 4) -> str:
     result = ["["]
-    for row in data:
-        result.append(" " * indent + repr(row) + ",")
+    result.extend(" " * indent + repr(row) + "," for row in data)
     result.append(" " * (indent - 4) + "]")
     return "\n".join(result)
 
 
 def _format_dict_list(data: dict[str, list[str]], indent: int = 4) -> str:
     result = ["{"]
-    for key, value in data.items():
-        result.append(
-            " " * indent + repr(key) + ": " + _format_list(value, indent + 4) + ","
-        )
+    result.extend(
+        " " * indent + repr(key) + ": " + _format_list(value, indent + 4) + ","
+        for key, value in data.items()
+    )
     result.append(" " * (indent - 4) + "}")
     return "\n".join(result)
 
@@ -135,9 +134,7 @@ class SetuptoolsBuildHook:
         package_paths = context.config.convert_package_paths()
         if package_paths["packages"]:
             extra.append(
-                "    'packages': {},\n".format(
-                    _format_list(cast("list[str]", package_paths["packages"]), 8)
-                )
+                f"""    'packages': {_format_list(cast("list[str]", package_paths["packages"]), 8)},\n"""
             )
         if package_paths["package_dir"]:
             extra.append(
@@ -159,15 +156,12 @@ class SetuptoolsBuildHook:
             extra.append("    'install_requires': INSTALL_REQUIRES,\n")
         if meta.get("optional-dependencies"):
             before.append(
-                "EXTRAS_REQUIRE = {}\n".format(
-                    _format_dict_list(meta["optional-dependencies"])
-                )
+                f'EXTRAS_REQUIRE = {_format_dict_list(meta["optional-dependencies"])}\n'
             )
             extra.append("    'extras_require': EXTRAS_REQUIRE,\n")
         if meta.get("requires-python"):
             extra.append(f"    'python_requires': {meta['requires-python']!r},\n")
-        entry_points = meta.entry_points
-        if entry_points:
+        if entry_points := meta.entry_points:
             entry_points_list = {
                 group: [f"{k} = {v}" for k, v in values.items()]
                 for group, values in entry_points.items()

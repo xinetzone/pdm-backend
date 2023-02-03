@@ -44,10 +44,8 @@ class DynamicVersionBuildHook:
         if not version_config or "version" in metadata:
             if metadata.get("version") is None:
                 metadata["version"] = "0.0.0"
-            try:
+            with contextlib.suppress(ValueError):
                 metadata["dynamic"].remove("version")
-            except ValueError:
-                pass
             return
         if "version" not in metadata.get("dynamic", []):
             raise ValidationError(
@@ -83,7 +81,7 @@ class DynamicVersionBuildHook:
                 f"Couldn't find version in file {version_source!r}, "
                 "it should appear as `__version__ = 'a.b.c'`.",
             )
-        return match.group(1)
+        return match[1]
 
     def resolve_version_from_scm(
         self,
@@ -131,11 +129,7 @@ class DynamicVersionBuildHook:
             module = importlib.import_module(matched.group(1))
             attrs = matched.group(2).split(".")
             obj: Any = functools.reduce(getattr, attrs, module)
-            args_group = matched.group(3)
-            if args_group:
-                args = ast.literal_eval(args_group)
-            else:
-                args = ()
+            args = ast.literal_eval(args_group) if (args_group := matched.group(3)) else ()
             version = obj(*args)
         self._write_version(context, version, write_to, write_template)
         return version

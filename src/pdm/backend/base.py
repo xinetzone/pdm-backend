@@ -130,9 +130,10 @@ class Builder:
     ) -> None:
         """Call the hook on all registered hooks and skip if not implemented."""
         for hook in self._hooks:
-            if hasattr(hook, "pdm_build_hook_enabled"):
-                if not hook.pdm_build_hook_enabled(context):
-                    continue
+            if hasattr(
+                hook, "pdm_build_hook_enabled"
+            ) and not hook.pdm_build_hook_enabled(context):
+                continue
             if hasattr(hook, hook_name):
                 getattr(hook, hook_name)(context, *args, **kwargs)
 
@@ -231,10 +232,9 @@ class Builder:
         root = self.location
         license_files = self.config.metadata.license_files
         if "paths" in license_files:
-            invalid_paths = [
+            if invalid_paths := [
                 p for p in license_files["paths"] if not (root / p).is_file()
-            ]
-            if invalid_paths:
+            ]:
                 raise ValidationError(
                     "license-files", f"License files not found: {invalid_paths}"
                 )
@@ -265,17 +265,15 @@ class Builder:
             # exclude source-includes for non-sdist builds
             meta_excludes.extend(source_includes)
 
-        if not build_config.includes:
-            top_packages = _find_top_packages(build_config.package_dir or ".")
-            if top_packages:
-                includes.update(top_packages)
-            else:
-                # Include all top-level .py modules under the package-dir
-                includes.add(f"{build_config.package_dir or '.'}/*.py")
-        else:
+        if build_config.includes:
             # use what user specifies
             includes.update(build_config.includes)
 
+        elif top_packages := _find_top_packages(build_config.package_dir or "."):
+            includes.update(top_packages)
+        else:
+            # Include all top-level .py modules under the package-dir
+            includes.add(f"{build_config.package_dir or '.'}/*.py")
         includes.update(source_includes)
         excludes.update(meta_excludes)
 

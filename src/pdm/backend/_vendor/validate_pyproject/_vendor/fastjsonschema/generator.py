@@ -7,9 +7,7 @@ from .ref_resolver import RefResolver
 
 
 def enforce_list(variable):
-    if isinstance(variable, list):
-        return variable
-    return [variable]
+    return variable if isinstance(variable, list) else [variable]
 
 
 # pylint: disable=too-many-instance-attributes,too-many-public-methods
@@ -95,20 +93,28 @@ class CodeGenerator:
         """
         self._generate_func_code()
 
-        if not self._compile_regexps:
-            return '\n'.join(self._extra_imports_lines + [
-                'from fastjsonschema import JsonSchemaValueException',
-                '',
-                '',
-            ])
-        return '\n'.join(self._extra_imports_lines + [
-            'import re',
-            'from fastjsonschema import JsonSchemaValueException',
-            '',
-            '',
-            'REGEX_PATTERNS = ' + serialize_regexes(self._compile_regexps),
-            '',
-        ])
+        return (
+            '\n'.join(
+                self._extra_imports_lines
+                + [
+                    'import re',
+                    'from fastjsonschema import JsonSchemaValueException',
+                    '',
+                    '',
+                    f'REGEX_PATTERNS = {serialize_regexes(self._compile_regexps)}',
+                    '',
+                ]
+            )
+            if self._compile_regexps
+            else '\n'.join(
+                self._extra_imports_lines
+                + [
+                    'from fastjsonschema import JsonSchemaValueException',
+                    '',
+                    '',
+                ]
+            )
+        )
 
 
     def _generate_func_code(self):
@@ -200,7 +206,7 @@ class CodeGenerator:
             # call validation function
             assert self._variable_name.startswith("data")
             path = self._variable_name[4:]
-            name_arg = '(name_prefix or "data") + "{}"'.format(path)
+            name_arg = f'(name_prefix or "data") + "{path}"'
             self.l('{}({variable}, custom_formats, {name_arg})', name, name_arg=name_arg)
 
 
@@ -230,9 +236,9 @@ class CodeGenerator:
         if name:
             # Add name_prefix to the name when it is being outputted.
             assert name.startswith('data')
-            name = '" + (name_prefix or "data") + "' + name[4:]
+            name = f'" + (name_prefix or "data") + "{name[4:]}'
             if '{' in name:
-                name = name + '".format(**locals()) + "'
+                name = f'{name}".format(**locals()) + "'
 
         context = dict(
             self._definition or {},
@@ -259,10 +265,13 @@ class CodeGenerator:
         """
         Short-cut for creating raising exception in the code.
         """
-        arg = '"'+msg+'"'
+        arg = f'"{msg}"'
         if append_to_msg:
-            arg += ' + (' + append_to_msg + ')'
-        msg = 'raise JsonSchemaValueException('+arg+', value={variable}, name="{name}", definition={definition}, rule={rule})'
+            arg += f' + ({append_to_msg})'
+        msg = (
+            f'raise JsonSchemaValueException({arg}'
+            + ', value={variable}, name="{name}", definition={definition}, rule={rule})'
+        )
         definition = self._expand_refs(self._definition)
         definition_rule = self.e(definition.get(rule) if isinstance(definition, dict) else None)
         self.l(msg, *args, definition=repr(definition), rule=repr(rule), definition_rule=definition_rule)
@@ -284,7 +293,7 @@ class CodeGenerator:
         It can be called several times and always it's done only when that variable
         still does not exists.
         """
-        variable_name = '{}_len'.format(self._variable)
+        variable_name = f'{self._variable}_len'
         if variable_name in self._variables:
             return
         self._variables.add(variable_name)
@@ -295,7 +304,7 @@ class CodeGenerator:
         Append code for creating variable with keys of that variable (dictionary)
         with a name ``{variable}_keys``. Similar to `create_variable_with_length`.
         """
-        variable_name = '{}_keys'.format(self._variable)
+        variable_name = f'{self._variable}_keys'
         if variable_name in self._variables:
             return
         self._variables.add(variable_name)
@@ -306,7 +315,7 @@ class CodeGenerator:
         Append code for creating variable with bool if it's instance of list
         with a name ``{variable}_is_list``. Similar to `create_variable_with_length`.
         """
-        variable_name = '{}_is_list'.format(self._variable)
+        variable_name = f'{self._variable}_is_list'
         if variable_name in self._variables:
             return
         self._variables.add(variable_name)
@@ -317,7 +326,7 @@ class CodeGenerator:
         Append code for creating variable with bool if it's instance of list
         with a name ``{variable}_is_dict``. Similar to `create_variable_with_length`.
         """
-        variable_name = '{}_is_dict'.format(self._variable)
+        variable_name = f'{self._variable}_is_dict'
         if variable_name in self._variables:
             return
         self._variables.add(variable_name)
@@ -328,8 +337,7 @@ def serialize_regexes(patterns_dict):
     # Unfortunately using `pprint.pformat` is causing errors
     # specially with big regexes
     regex_patterns = (
-        repr(k) + ": " + repr_regex(v)
-        for k, v in patterns_dict.items()
+        f"{repr(k)}: {repr_regex(v)}" for k, v in patterns_dict.items()
     )
     return '{\n    ' + ",\n    ".join(regex_patterns) + "\n}"
 
@@ -337,5 +345,5 @@ def serialize_regexes(patterns_dict):
 def repr_regex(regex):
     all_flags = ("A", "I", "DEBUG", "L", "M", "S", "X")
     flags = " | ".join(f"re.{f}" for f in all_flags if regex.flags & getattr(re, f))
-    flags = ", " + flags if flags else ""
+    flags = f", {flags}" if flags else ""
     return "re.compile({!r}{})".format(regex.pattern, flags)

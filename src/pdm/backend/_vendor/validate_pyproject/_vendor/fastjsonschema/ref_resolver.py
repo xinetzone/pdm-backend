@@ -38,7 +38,7 @@ def resolve_path(schema, fragment):
         elif part in schema:
             schema = schema[part]
         else:
-            raise JsonSchemaDefinitionException('Unresolvable ref: {}'.format(part))
+            raise JsonSchemaDefinitionException(f'Unresolvable ref: {part}')
     return schema
 
 
@@ -64,7 +64,7 @@ def resolve_remote(uri, handlers):
         try:
             result = json.loads(req.read().decode(encoding),)
         except ValueError as exc:
-            raise JsonSchemaDefinitionException('{} failed to decode: {}'.format(uri, exc))
+            raise JsonSchemaDefinitionException(f'{uri} failed to decode: {exc}')
     return result
 
 
@@ -159,17 +159,17 @@ class RefResolver:
         Walk thru schema and dereferencing ``id`` and ``$ref`` instances
         """
         if isinstance(node, bool):
-            pass
-        elif '$ref' in node and isinstance(node['$ref'], str):
+            return
+        if '$ref' in node and isinstance(node['$ref'], str):
             ref = node['$ref']
             node['$ref'] = urlparse.urljoin(self.resolution_scope, ref)
         elif ('$id' in node or 'id' in node) and isinstance(get_id(node), str):
             with self.in_scope(get_id(node)):
                 self.store[normalize(self.resolution_scope)] = node
-                for _, item in node.items():
+                for item in node.values():
                     if isinstance(item, dict):
                         self.walk(item)
         else:
-            for _, item in node.items():
+            for item in node.values():
                 if isinstance(item, dict):
                     self.walk(item)

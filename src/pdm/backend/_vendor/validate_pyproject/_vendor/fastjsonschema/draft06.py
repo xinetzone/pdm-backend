@@ -57,7 +57,7 @@ class CodeGeneratorDraft06(CodeGeneratorDraft04):
         try:
             python_types = ', '.join(JSON_TYPE_TO_PYTHON_TYPE[t] for t in types)
         except KeyError as exc:
-            raise JsonSchemaDefinitionException('Unknown type: {}'.format(exc))
+            raise JsonSchemaDefinitionException(f'Unknown type: {exc}')
 
         extra = ''
 
@@ -117,7 +117,7 @@ class CodeGeneratorDraft06(CodeGeneratorDraft04):
                         with self.l('try:'):
                             self.generate_func_code_block(
                                 property_names_definition,
-                                '{}_key'.format(self._variable),
+                                f'{self._variable}_key',
                                 self._variable_name,
                                 clear_variables=True,
                             )
@@ -155,7 +155,7 @@ class CodeGeneratorDraft06(CodeGeneratorDraft04):
                     with self.l('try:'):
                         self.generate_func_code_block(
                             contains_definition,
-                            '{}_key'.format(self._variable),
+                            f'{self._variable}_key',
                             self._variable_name,
                             clear_variables=True,
                         )
@@ -180,6 +180,6 @@ class CodeGeneratorDraft06(CodeGeneratorDraft04):
         """
         const = self._definition['const']
         if isinstance(const, str):
-            const = '"{}"'.format(self.e(const))
+            const = f'"{self.e(const)}"'
         with self.l('if {variable} != {}:', const):
             self.exc('{name} must be same as const definition: {definition_rule}', rule='const')

@@ -150,8 +150,7 @@ def get_flag(
     if val is None:
         if warn:
             warnings.warn(
-                "Config variable '{}' is unset, Python ABI tag may "
-                "be incorrect".format(var),
+                f"Config variable '{var}' is unset, Python ABI tag may be incorrect",
                 RuntimeWarning,
                 2,
             )
@@ -164,11 +163,11 @@ def get_abi_tag() -> str | None:
     (CPython 2, PyPy)."""
     soabi = sysconfig.get_config_var("SOABI")
     impl = tags.interpreter_name()
-    is_cpython = impl == "cp"
     if not soabi and impl in ("cp", "pp") and hasattr(sys, "maxunicode"):
         d = ""
         m = ""
         u = ""
+        is_cpython = impl == "cp"
         if get_flag("Py_DEBUG", hasattr(sys, "gettotalrefcount"), warn=is_cpython):
             d = "d"
         if sys.version_info < (3, 8) and get_flag(
@@ -202,17 +201,12 @@ def expand_vars(line: str, root: str) -> str:
     if "$" not in line:
         return line
 
-    if "://" in line:
-        quote: Callable[[str], str] = urllib.parse.quote
-    else:
-        quote = str
+    quote = urllib.parse.quote if "://" in line else str
     line = line.replace("${PROJECT_ROOT}", quote(root).lstrip("/"))
 
     def replace_func(match: Match[str]) -> str:
         rv = os.getenv(match.group(1))
-        if rv is None:
-            return match.group(0)
-        return quote(rv)
+        return match.group(0) if rv is None else quote(rv)
 
     return re.sub(r"\$\{(.+?)\}", replace_func, line)
 

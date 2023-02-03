@@ -247,7 +247,10 @@ def python_entrypoint_reference(value: str) -> bool:
         obj, _, extras_ = rest.partition("[")
         if extras_.strip()[-1] != "]":
             return False
-        extras = (x.strip() for x in extras_.strip(string.whitespace + "[]").split(","))
+        extras = (
+            x.strip()
+            for x in extras_.strip(f"{string.whitespace}[]").split(",")
+        )
         if not all(pep508_identifier(e) for e in extras):
             return False
         _logger.warning(f"`{value}` - using extras for entry points is not recommended")

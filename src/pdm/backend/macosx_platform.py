@@ -262,19 +262,15 @@ def extract_macosx_min_system_version(path_to_lib: str) -> Version | None:
 
         if magic_number in [FAT_MAGIC, FAT_CIGAM_64]:
 
+
             class FatHeader(BaseClass):
                 _fields_ = fat_header_fields
 
             fat_header = read_data(FatHeader, lib_file)
-            if magic_number == FAT_MAGIC:
 
-                class FatArch(BaseClass):
-                    _fields_ = fat_arch_fields
 
-            else:
-
-                class FatArch(BaseClass):
-                    _fields_ = fat_arch_64_fields
+            class FatArch(BaseClass):
+                _fields_ = fat_arch_fields if magic_number == FAT_MAGIC else fat_arch_64_fields
 
             fat_arch_list = [
                 read_data(FatArch, lib_file) for _ in range(fat_header.nfat_arch)
@@ -285,25 +281,17 @@ def extract_macosx_min_system_version(path_to_lib: str) -> Version | None:
                 try:
                     version = read_mach_header(lib_file, el.offset)
                     if version is not None:
-                        if el.cputype == CPU_TYPE_ARM64 and len(fat_arch_list) != 1:
-                            # Xcode will not set the deployment target below 11.0.0
-                            # for the arm64 architecture. Ignore the arm64 deployment
-                            # in fat binaries when the target is 11.0.0, that way
-                            # the other architetures can select a lower deployment
-                            # target.
-                            # This is safe because there is no arm64 variant for
-                            # macOS 10.15 or earlier.
-                            if version == (11, 0, 0):
-                                continue
+                        if (
+                            el.cputype == CPU_TYPE_ARM64
+                            and len(fat_arch_list) != 1
+                            and version == (11, 0, 0)
+                        ):
+                            continue
                         versions_list.append(version)
                 except ValueError:
                     pass
 
-            if len(versions_list) > 0:
-                return max(versions_list)
-            else:
-                return None
-
+            return max(versions_list, default=None)
         else:
             try:
                 return read_mach_header(lib_file, 0)
@@ -328,15 +316,10 @@ def read_mach_header(lib_file: BinaryIO, seek: int | None = None) -> Version | N
     class SegmentBase(base_class):
         _fields_ = segment_base_fields
 
-    if arch == "32":
 
-        class MachHeader(base_class):
-            _fields_ = mach_header_fields
 
-    else:
-
-        class MachHeader(base_class):
-            _fields_ = mach_header_fields_64
+    class MachHeader(base_class):
+        _fields_ = mach_header_fields if arch == "32" else mach_header_fields_64
 
     mach_header = read_data(MachHeader, lib_file)
     for _i in range(mach_header.ncmds):
@@ -388,12 +371,7 @@ def calculate_macosx_platform_tag(archive_root: str | Path, platform_tag: str) -
             deploy_target = (deploy_target[0], 0)
         if deploy_target < base_version:
             sys.stderr.write(
-                "[WARNING] MACOSX_DEPLOYMENT_TARGET is set to a lower value ({}) than "
-                "the version on which the Python interpreter was compiled ({}), and "
-                "will be ignored.\n".format(
-                    ".".join(str(x) for x in deploy_target),
-                    ".".join(str(x) for x in base_version),
-                )
+                f'[WARNING] MACOSX_DEPLOYMENT_TARGET is set to a lower value ({".".join(str(x) for x in deploy_target)}) than the version on which the Python interpreter was compiled ({".".join(str(x) for x in base_version)}), and will be ignored.\n'
             )
         else:
             base_version = deploy_target
@@ -401,18 +379,18 @@ def calculate_macosx_platform_tag(archive_root: str | Path, platform_tag: str) -
     assert len(base_version) == 2
     start_version = base_version
     versions_dict = {}
-    for (dirpath, _, filenames) in os.walk(archive_root):
+    for dirpath, _, filenames in os.walk(archive_root):
         for filename in filenames:
             if filename.endswith(".dylib") or filename.endswith(".so"):
                 lib_path = os.path.join(dirpath, filename)
                 min_ver = extract_macosx_min_system_version(lib_path)
                 if min_ver is not None:
-                    min_ver = min_ver[0:2]
+                    min_ver = min_ver[:2]
                     if min_ver[0] > 10:
                         min_ver = (min_ver[0], 0)
                     versions_dict[lib_path] = min_ver
 
-    if len(versions_dict) > 0:
+    if versions_dict:
         base_version = max(base_version, max(versions_dict.values()))
 
     # macosx platform tag do not support minor bugfix release
@@ -421,10 +399,7 @@ def calculate_macosx_platform_tag(archive_root: str | Path, platform_tag: str) -
         problematic_files = "\n".join(
             k for k, v in versions_dict.items() if v > start_version
         )
-        if len(problematic_files) == 1:
-            files_form = "this file"
-        else:
-            files_form = "these files"
+        files_form = "this file" if len(problematic_files) == 1 else "these files"
         error_message = (
             "[WARNING] This wheel needs a higher macOS version than {}  "
             "To silence this warning, set MACOSX_DEPLOYMENT_TARGET to at least "
@@ -443,5 +418,4 @@ def calculate_macosx_platform_tag(archive_root: str | Path, platform_tag: str) -
 
         sys.stderr.write(error_message)
 
-    platform_tag = prefix + "_" + fin_base_version + "_" + suffix
-    return platform_tag
+    return f"{prefix}_{fin_base_version}_{suffix}"

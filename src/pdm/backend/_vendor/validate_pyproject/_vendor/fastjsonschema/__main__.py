@@ -5,11 +5,7 @@ from . import compile_to_code
 
 
 def main():
-    if len(sys.argv) == 2:
-        definition = sys.argv[1]
-    else:
-        definition = sys.stdin.read()
-
+    definition = sys.argv[1] if len(sys.argv) == 2 else sys.stdin.read()
     definition = json.loads(definition)
     code = compile_to_code(definition)
     print(code)

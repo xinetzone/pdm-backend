@@ -447,21 +447,15 @@ class Specifier(BaseSpecifier):
         # Check to see if the prospective version is less than the spec
         # version. If it's not we can short circuit and just return False now
         # instead of doing extra unneeded work.
-        if not prospective < spec:
-            return False
-
-        # This special case is here so that, unless the specifier itself
-        # includes is a pre-release version, that we do not accept pre-release
-        # versions for the version mentioned in the specifier (e.g. <3.1 should
-        # not match 3.1.dev0, but should match 3.0.dev0).
-        if not spec.is_prerelease and prospective.is_prerelease:
-            if Version(prospective.base_version) == Version(spec.base_version):
-                return False
-
-        # If we've gotten to here, it means that prospective version is both
-        # less than the spec version *and* it's not a pre-release of the same
-        # version in the spec.
-        return True
+        return (
+            bool(
+                spec.is_prerelease
+                or not prospective.is_prerelease
+                or Version(prospective.base_version) != Version(spec.base_version)
+            )
+            if prospective < spec
+            else False
+        )
 
     def _compare_greater_than(self, prospective: Version, spec_str: str) -> bool:
 
@@ -479,23 +473,21 @@ class Specifier(BaseSpecifier):
         # includes is a post-release version, that we do not accept
         # post-release versions for the version mentioned in the specifier
         # (e.g. >3.1 should not match 3.0.post0, but should match 3.2.post0).
-        if not spec.is_postrelease and prospective.is_postrelease:
-            if Version(prospective.base_version) == Version(spec.base_version):
-                return False
+        if (
+            not spec.is_postrelease
+            and prospective.is_postrelease
+            and Version(prospective.base_version) == Version(spec.base_version)
+        ):
+            return False
 
         # Ensure that we do not allow a local version of the version mentioned
         # in the specifier, which is technically greater than, to match.
-        if prospective.local is not None:
-            if Version(prospective.base_version) == Version(spec.base_version):
-                return False
-
-        # If we've gotten to here, it means that prospective version is both
-        # greater than the spec version *and* it's not a pre-release of the
-        # same version in the spec.
-        return True
+        return prospective.local is None or Version(
+            prospective.base_version
+        ) != Version(spec.base_version)
 
     def _compare_arbitrary(self, prospective: Version, spec: str) -> bool:
-        return str(prospective).lower() == str(spec).lower()
+        return str(prospective).lower() == spec.lower()
 
     def __contains__(self, item: Union[str, Version]) -> bool:
         """Return whether or not the item is contained in this specifier.
@@ -594,11 +586,11 @@ class Specifier(BaseSpecifier):
         ['1.3', '1.5a1']
         """
 
-        yielded = False
         found_prereleases = []
 
         kw = {"prereleases": prereleases if prereleases is not None else True}
 
+        yielded = False
         # Attempt to iterate over all the values in the iterable and if any of
         # them match, yield them.
         for version in iterable:
@@ -608,12 +600,12 @@ class Specifier(BaseSpecifier):
                 # If our version is a prerelease, and we were not set to allow
                 # prereleases, then we'll store it for later incase nothing
                 # else matches this specifier.
-                if parsed_version.is_prerelease and not (
-                    prereleases or self.prereleases
+                if (
+                    parsed_version.is_prerelease
+                    and not prereleases
+                    and not self.prereleases
                 ):
                     found_prereleases.append(version)
-                # Either this is not a prerelease, or we should have been
-                # accepting prereleases from the beginning.
                 else:
                     yielded = True
                     yield version
@@ -622,8 +614,7 @@ class Specifier(BaseSpecifier):
         # any values, and if we have not and we have any prereleases stored up
         # then we will go ahead and yield the prereleases.
         if not yielded and found_prereleases:
-            for version in found_prereleases:
-                yield version
+            yield from found_prereleases
 
 
 _prefix_regex = re.compile(r"^([0-9]+)((?:a|b|c|rc)[0-9]+)$")
@@ -632,8 +623,7 @@ _prefix_regex = re.compile(r"^([0-9]+)((?:a|b|c|rc)[0-9]+)$")
 def _version_split(version: str) -> List[str]:
     result: List[str] = []
     for item in version.split("."):
-        match = _prefix_regex.search(item)
-        if match:
+        if match := _prefix_regex.search(item):
             result.extend(match.groups())
         else:
             result.append(item)
@@ -693,12 +683,9 @@ class SpecifierSet(BaseSpecifier):
         # strip each item to remove leading/trailing whitespace.
         split_specifiers = [s.strip() for s in specifiers.split(",") if s.strip()]
 
-        # Parsed each individual specifier, attempting first to make it a
-        # Specifier.
-        parsed: Set[Specifier] = set()
-        for specifier in split_specifiers:
-            parsed.add(Specifier(specifier))
-
+        parsed: Set[Specifier] = {
+            Specifier(specifier) for specifier in split_specifiers
+        }
         # Turn our parsed specifiers into a frozen set and save them for later.
         self._specs = frozenset(parsed)
 
@@ -716,12 +703,7 @@ class SpecifierSet(BaseSpecifier):
         # If we don't have any specifiers, and we don't have a forced value,
         # then we'll just return None since we don't know if this should have
         # pre-releases or not.
-        if not self._specs:
-            return None
-
-        # Otherwise we'll see if any of the given specifiers accept
-        # prereleases, if any of them do we'll return True, otherwise False.
-        return any(s.prereleases for s in self._specs)
+        return any(s.prereleases for s in self._specs) if self._specs else None
 
     @prereleases.setter
     def prereleases(self, value: bool) -> None:

@@ -26,18 +26,14 @@ def _subprocess_call(
     cwd: os.PathLike | None = None,
     extra_env: dict[str, str] | None = None,
 ) -> tuple[int, str, str]:
-    # adapted from pre-commit
-    # Too many bugs dealing with environment variables and GIT:
-    # https://github.com/pre-commit/pre-commit/issues/300
     env = {
         k: v
         for k, v in os.environ.items()
         if not k.startswith("GIT_")
         or k in ("GIT_EXEC_PATH", "GIT_SSH", "GIT_SSH_COMMAND")
-    }
-    env.update({"LC_ALL": "C", "LANG": "", "HGPLAIN": "1"})
+    } | {"LC_ALL": "C", "LANG": "", "HGPLAIN": "1"}
     if extra_env:
-        env.update(extra_env)
+        env |= extra_env
     if isinstance(cmd, str):
         cmd = shlex.split(cmd)
     proc = subprocess.Popen(
@@ -73,9 +69,7 @@ def meta(
 
 def _git_get_branch(root: os.PathLike[Any]) -> str | None:
     ret, out, _ = _subprocess_call("git rev-parse --abbrev-ref HEAD", root)
-    if not ret:
-        return out
-    return None
+    return None if ret else out
 
 
 def _git_is_dirty(root: os.PathLike[Any]) -> bool:
@@ -85,9 +79,7 @@ def _git_is_dirty(root: os.PathLike[Any]) -> bool:
 
 def _git_get_node(root: os.PathLike[Any]) -> str | None:
     ret, out, _ = _subprocess_call("git rev-parse --verify --quiet HEAD", root)
-    if not ret:
-        return out[:7]
-    return None
+    return None if ret else out[:7]
 
 
 def _git_count_all_nodes(root: os.PathLike[Any]) -> int:
@@ -116,16 +108,12 @@ class _ParseResult(NamedTuple):
 
 
 def _parse_version_tag(tag: str) -> _ParseResult | None:
-    tagstring = tag if not isinstance(tag, str) else str(tag)
+    tagstring = tag
     match = DEFAULT_TAG_REGEX.match(tagstring)
 
     result = None
     if match:
-        if len(match.groups()) == 1:
-            key: int | str = 1
-        else:
-            key = "version"
-
+        key = 1 if len(match.groups()) == 1 else "version"
         result = _ParseResult(
             match.group(key),
             match.group(0)[: match.start(key)],
@@ -200,10 +188,7 @@ def get_latest_normalizable_tag(root: os.PathLike[Any]) -> str:
     ]
     _, output, _ = _subprocess_call(cmd, root)
     outlines = output.split()
-    if not outlines:
-        return "null"
-    tag = outlines[-1].split()[-1]
-    return tag
+    return outlines[-1].split()[-1] if outlines else "null"
 
 
 def hg_get_graph_distance(root: os.PathLike[Any], rev1: str, rev2: str = ".") -> int:
@@ -218,15 +203,15 @@ def _hg_tagdist_normalize_tagcommit(
     dirty = node.endswith("+")
     node = "h" + node.strip("+")
 
-    # Detect changes since the specified tag
-    revset = (
-        "(branch(.)"  # look for revisions in this branch only
-        " and tag({tag!r})::."  # after the last tag
-        # ignore commits that only modify .hgtags and nothing else:
-        " and (merge() or file('re:^(?!\\.hgtags).*$'))"
-        " and not tag({tag!r}))"  # ignore the tagged commit itself
-    ).format(tag=tag)
     if tag != "0.0":
+        # Detect changes since the specified tag
+        revset = (
+            "(branch(.)"  # look for revisions in this branch only
+            " and tag({tag!r})::."  # after the last tag
+            # ignore commits that only modify .hgtags and nothing else:
+            " and (merge() or file('re:^(?!\\.hgtags).*$'))"
+            " and not tag({tag!r}))"  # ignore the tagged commit itself
+        ).format(tag=tag)
         _, commits, _ = _subprocess_call(
             ["hg", "log", "-r", revset, "--template", "{node|short}"],
             root,
@@ -234,10 +219,11 @@ def _hg_tagdist_normalize_tagcommit(
     else:
         commits = "True"
 
-    if commits or dirty:
-        return meta(tag, distance=dist, node=node, dirty=dirty, branch=branch)
-    else:
-        return meta(tag)
+    return (
+        meta(tag, distance=dist, node=node, dirty=dirty, branch=branch)
+        if commits or dirty
+        else meta(tag)
+    )
 
 
 def guess_next_version(tag_version: Version) -> str:
