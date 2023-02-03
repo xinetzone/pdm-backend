@@ -316,11 +316,13 @@ class StandardMetadata():
         )
 
     def _email_list(self, people: list[tuple[str, str]]) -> str:
-        return ', '.join([
-            '{}{}'.format(name, f' <{_email}>' if _email else '')
-            for name, _email in people
-            if _email
-        ])
+        return ', '.join(
+            [
+                f"{name}{f' <{_email}>' if _email else ''}"
+                for name, _email in people
+                if _email
+            ]
+        )
 
     def _build_extra_req(
         self,
@@ -329,7 +331,7 @@ class StandardMetadata():
     ) -> pkg_requirements.Requirement:
         if requirement.marker:  # append our extra to the marker
             requirement.marker = pkg_markers.Marker(
-                str(requirement.marker) + f' and extra == "{extra}"'
+                f'{str(requirement.marker)} and extra == "{extra}"'
             )
         else:  # add our extra marker
             requirement.marker = pkg_markers.Marker(f'extra == "{extra}"')

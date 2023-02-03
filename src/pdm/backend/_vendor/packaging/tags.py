@@ -74,14 +74,15 @@ class Tag:
         return self._platform
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Tag):
-            return NotImplemented
-
         return (
-            (self._hash == other._hash)  # Short-circuit ASAP for perf reasons.
-            and (self._platform == other._platform)
-            and (self._abi == other._abi)
-            and (self._interpreter == other._interpreter)
+            (
+                (self._hash == other._hash)  # Short-circuit ASAP for perf reasons.
+                and (self._platform == other._platform)
+                and (self._abi == other._abi)
+                and (self._interpreter == other._interpreter)
+            )
+            if isinstance(other, Tag)
+            else NotImplemented
         )
 
     def __hash__(self) -> int:
@@ -196,10 +197,7 @@ def cpython_tags(
     interpreter = f"cp{_version_nodot(python_version[:2])}"
 
     if abis is None:
-        if len(python_version) > 1:
-            abis = _cpython_abis(python_version, warn)
-        else:
-            abis = []
+        abis = _cpython_abis(python_version, warn) if len(python_version) > 1 else []
     abis = list(abis)
     # 'abi3' and 'none' are explicitly handled later.
     for explicit_abi in ("abi3", "none"):
@@ -226,8 +224,7 @@ def cpython_tags(
 
 
 def _generic_abi() -> Iterator[str]:
-    abi = sysconfig.get_config_var("SOABI")
-    if abi:
+    if abi := sysconfig.get_config_var("SOABI"):
         yield _normalize_string(abi)
 
 
@@ -305,10 +302,7 @@ def _mac_arch(arch: str, is_32bit: bool = _32_BIT_INTERPRETER) -> str:
     if not is_32bit:
         return arch
 
-    if arch.startswith("ppc"):
-        return "ppc"
-
-    return "i386"
+    return "ppc" if arch.startswith("ppc") else "i386"
 
 
 def _mac_binary_formats(version: MacVersion, cpu_arch: str) -> List[str]:
@@ -375,12 +369,8 @@ def mac_platforms(
             version = cast("MacVersion", tuple(map(int, version_str.split(".")[:2])))
     else:
         version = version
-    if arch is None:
-        arch = _mac_arch(cpu_arch)
-    else:
-        arch = arch
-
-    if (10, 0) <= version and version < (11, 0):
+    arch = _mac_arch(cpu_arch) if arch is None else arch
+    if (10, 0) <= version < (11, 0):
         # Prior to Mac OS 11, each yearly release of Mac OS bumped the
         # "minor" version number.  The major version was always 10.
         for minor_version in range(version[1], -1, -1):
@@ -421,9 +411,9 @@ def mac_platforms(
                         binary_format=binary_format,
                     )
         else:
+            binary_format = "universal2"
             for minor_version in range(16, 3, -1):
                 compat_version = 10, minor_version
-                binary_format = "universal2"
                 yield "macosx_{major}_{minor}_{binary_format}".format(
                     major=compat_version[0],
                     minor=compat_version[1],
@@ -473,10 +463,7 @@ def interpreter_version(*, warn: bool = False) -> str:
     Returns the version of the running interpreter.
     """
     version = _get_config_var("py_version_nodot", warn=warn)
-    if version:
-        version = str(version)
-    else:
-        version = _version_nodot(sys.version_info[:2])
+    version = str(version) if version else _version_nodot(sys.version_info[:2])
     return version
 
 
@@ -501,7 +488,7 @@ def sys_tags(*, warn: bool = False) -> Iterator[Tag]:
     if interp_name == "pp":
         interp = "pp3"
     elif interp_name == "cp":
-        interp = "cp" + interpreter_version(warn=warn)
+        interp = f"cp{interpreter_version(warn=warn)}"
     else:
         interp = None
     yield from compatible_tags(interpreter=interp)

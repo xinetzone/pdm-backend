@@ -114,10 +114,11 @@ class Config:
                     includes.remove(include)
             packages[:] = list(packages_set)
             for include in includes:
-                for path in glob.glob(include, recursive=True):
-                    if "/" not in path.lstrip("./") and path.endswith(".py"):
-                        # Only include top level py modules
-                        py_modules.append(path.lstrip("./")[:-3])
+                py_modules.extend(
+                    path.lstrip("./")[:-3]
+                    for path in glob.glob(include, recursive=True)
+                    if "/" not in path.lstrip("./") and path.endswith(".py")
+                )
                 if include.endswith(".py"):
                     continue
                 for package in packages:
@@ -214,9 +215,7 @@ class BuildConfig(Table):
     def custom_hook(self) -> str | None:
         """The relative path to the custom hook or None if not exists"""
         script = self.get("custom-hook", "pdm_build.py")
-        if (self.root / script).exists():
-            return script
-        return None
+        return script if (self.root / script).exists() else None
 
     @property
     def includes(self) -> list[str]:

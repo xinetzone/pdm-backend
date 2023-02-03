@@ -42,14 +42,12 @@ class Requirement:
             if parsed_url.scheme == "file":
                 if urllib.parse.urlunparse(parsed_url) != parsed.url:
                     raise InvalidRequirement("Invalid URL given")
-            elif not (parsed_url.scheme and parsed_url.netloc) or (
-                not parsed_url.scheme and not parsed_url.netloc
-            ):
+            elif not (parsed_url.scheme and parsed_url.netloc):
                 raise InvalidRequirement(f"Invalid URL: {parsed.url}")
             self.url: Optional[str] = parsed.url
         else:
             self.url = None
-        self.extras: Set[str] = set(parsed.extras if parsed.extras else [])
+        self.extras: Set[str] = set(parsed.extras or [])
         self.specifier: SpecifierSet = SpecifierSet(parsed.specifier)
         self.marker: Optional[Marker] = None
         if parsed.marker is not None:
@@ -83,13 +81,14 @@ class Requirement:
         return hash((self.__class__.__name__, str(self)))
 
     def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, Requirement):
-            return NotImplemented
-
         return (
-            self.name == other.name
-            and self.extras == other.extras
-            and self.specifier == other.specifier
-            and self.url == other.url
-            and self.marker == other.marker
+            (
+                self.name == other.name
+                and self.extras == other.extras
+                and self.specifier == other.specifier
+                and self.url == other.url
+                and self.marker == other.marker
+            )
+            if isinstance(other, Requirement)
+            else NotImplemented
         )

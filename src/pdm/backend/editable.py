@@ -19,9 +19,7 @@ def is_subpath(path: str, parent: str) -> bool:
 class EditableBuildHook:
     @staticmethod
     def editable_version(version: str) -> str:
-        if "+" in version:
-            return f"{version}.editable"
-        return f"{version}+editable"
+        return f"{version}.editable" if "+" in version else f"{version}+editable"
 
     def pdm_build_initialize(self, context: Context) -> None:
         editables = self._prepare_editable(context)
@@ -72,13 +70,9 @@ class EditableBuildHook:
                     continue
 
                 patterns: tuple[str, ...] = (f"{module}.py",)
-                if os.name == "nt":
-                    patterns += (f"{module}.*.pyd",)
-                else:
-                    patterns += (f"{module}.*.so",)
+                patterns += (f"{module}.*.pyd", ) if os.name == "nt" else (f"{module}.*.so", )
                 for pattern in patterns:
-                    path = next(Path(package_dir).glob(pattern), None)
-                    if path:
+                    if path := next(Path(package_dir).glob(pattern), None):
                         editables.map(module, path.as_posix())
                         break
 

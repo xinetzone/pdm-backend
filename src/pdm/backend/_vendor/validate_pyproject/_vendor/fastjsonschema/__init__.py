@@ -210,10 +210,9 @@ def compile_to_code(definition, handlers={}, formats={}, use_default=True):
     """
     _, code_generator = _factory(definition, handlers, formats, use_default)
     return (
-        'VERSION = "' + VERSION + '"\n' +
-        code_generator.global_state_code + '\n' +
-        code_generator.func_code
-    )
+        (f'VERSION = "{VERSION}' + '"\n' + code_generator.global_state_code)
+        + '\n'
+    ) + code_generator.func_code
 
 
 def _factory(definition, handlers, formats={}, use_default=True):

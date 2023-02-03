@@ -86,7 +86,7 @@ class CodeGeneratorDraft04(CodeGenerator):
         try:
             python_types = ', '.join(JSON_TYPE_TO_PYTHON_TYPE[t] for t in types)
         except KeyError as exc:
-            raise JsonSchemaDefinitionException('Unknown type: {}'.format(exc))
+            raise JsonSchemaDefinitionException(f'Unknown type: {exc}')
 
         extra = ''
         if ('number' in types or 'integer' in types) and 'boolean' not in types:
@@ -260,26 +260,25 @@ class CodeGeneratorDraft04(CodeGenerator):
             if format_ in self._custom_formats:
                 custom_format = self._custom_formats[format_]
                 if isinstance(custom_format, str):
-                    self._generate_format(format_, format_ + '_re_pattern', custom_format)
+                    self._generate_format(format_, f'{format_}_re_pattern', custom_format)
                 else:
                     with self.l('if not custom_formats["{}"]({variable}):', format_):
                         self.exc('{name} must be {}', format_, rule='format')
             elif format_ in self.FORMAT_REGEXS:
                 format_regex = self.FORMAT_REGEXS[format_]
-                self._generate_format(format_, format_ + '_re_pattern', format_regex)
-            # Format regex is used only in meta schemas.
+                self._generate_format(format_, f'{format_}_re_pattern', format_regex)
             elif format_ == 'regex':
                 with self.l('try:', optimize=False):
                     self.l('re.compile({variable})')
                 with self.l('except Exception:'):
                     self.exc('{name} must be a valid regex', rule='format')
             else:
-                raise JsonSchemaDefinitionException('Unknown format: {}'.format(format_))
+                raise JsonSchemaDefinitionException(f'Unknown format: {format_}')
 
 
     def _generate_format(self, format_name, regexp_name, regexp):
         if self._definition['format'] == format_name:
-            if not regexp_name in self._compile_regexps:
+            if regexp_name not in self._compile_regexps:
                 self._compile_regexps[regexp_name] = re.compile(regexp)
             with self.l('if not REGEX_PATTERNS["{}"].match({variable}):', regexp_name):
                 self.exc('{name} must be {}', format_name, rule='format')
@@ -402,8 +401,8 @@ class CodeGeneratorDraft04(CodeGenerator):
                         self.l('{variable}__{0} = {variable}[{0}]', idx)
                         self.generate_func_code_block(
                             item_definition,
-                            '{}__{}'.format(self._variable, idx),
-                            '{}[{}]'.format(self._variable_name, idx),
+                            f'{self._variable}__{idx}',
+                            f'{self._variable_name}[{idx}]',
                         )
                     if self._use_default and isinstance(item_definition, dict) and 'default' in item_definition:
                         self.l('else: {variable}.append({})', repr(item_definition['default']))
@@ -416,21 +415,22 @@ class CodeGeneratorDraft04(CodeGenerator):
                         with self.l('for {variable}_x, {variable}_item in enumerate({variable}[{0}:], {0}):', len(items_definition)):
                             count = self.generate_func_code_block(
                                 self._definition['additionalItems'],
-                                '{}_item'.format(self._variable),
-                                '{}[{{{}_x}}]'.format(self._variable_name, self._variable),
+                                f'{self._variable}_item',
+                                '{}[{{{}_x}}]'.format(
+                                    self._variable_name, self._variable
+                                ),
                             )
                             if count == 0:
                                 self.l('pass')
-            else:
-                if items_definition:
-                    with self.l('for {variable}_x, {variable}_item in enumerate({variable}):'):
-                        count = self.generate_func_code_block(
-                            items_definition,
-                            '{}_item'.format(self._variable),
-                            '{}[{{{}_x}}]'.format(self._variable_name, self._variable),
-                        )
-                        if count == 0:
-                            self.l('pass')
+            elif items_definition:
+                with self.l('for {variable}_x, {variable}_item in enumerate({variable}):'):
+                    count = self.generate_func_code_block(
+                        items_definition,
+                        f'{self._variable}_item',
+                        '{}[{{{}_x}}]'.format(self._variable_name, self._variable),
+                    )
+                    if count == 0:
+                        self.l('pass')
 
     def generate_min_properties(self):
         self.create_variable_is_dict()
@@ -479,14 +479,16 @@ class CodeGeneratorDraft04(CodeGenerator):
             for key, prop_definition in self._definition['properties'].items():
                 key_name = re.sub(r'($[^a-zA-Z]|[^a-zA-Z0-9])', '', key)
                 if not isinstance(prop_definition, (dict, bool)):
-                    raise JsonSchemaDefinitionException('{}[{}] must be object'.format(self._variable, key_name))
+                    raise JsonSchemaDefinitionException(
+                        f'{self._variable}[{key_name}] must be object'
+                    )
                 with self.l('if "{}" in {variable}_keys:', self.e(key)):
                     self.l('{variable}_keys.remove("{}")', self.e(key))
                     self.l('{variable}__{0} = {variable}["{1}"]', key_name, self.e(key))
                     self.generate_func_code_block(
                         prop_definition,
-                        '{}__{}'.format(self._variable, key_name),
-                        '{}.{}'.format(self._variable_name, self.e(key)),
+                        f'{self._variable}__{key_name}',
+                        f'{self._variable_name}.{self.e(key)}',
                         clear_variables=True,
                     )
                 if self._use_default and isinstance(prop_definition, dict) and 'default' in prop_definition:
@@ -518,8 +520,10 @@ class CodeGeneratorDraft04(CodeGenerator):
                             self.l('{variable}_keys.remove({variable}_key)')
                         self.generate_func_code_block(
                             definition,
-                            '{}_val'.format(self._variable),
-                            '{}.{{{}_key}}'.format(self._variable_name, self._variable),
+                            f'{self._variable}_val',
+                            '{}.{{{}_key}}'.format(
+                                self._variable_name, self._variable
+                            ),
                             clear_variables=True,
                         )
 
@@ -552,8 +556,10 @@ class CodeGeneratorDraft04(CodeGenerator):
                         self.l('{variable}_value = {variable}.get({variable}_key)')
                         self.generate_func_code_block(
                             add_prop_definition,
-                            '{}_value'.format(self._variable),
-                            '{}.{{{}_key}}'.format(self._variable_name, self._variable),
+                            f'{self._variable}_value',
+                            '{}.{{{}_key}}'.format(
+                                self._variable_name, self._variable
+                            ),
                         )
             else:
                 with self.l('if {variable}_keys:'):

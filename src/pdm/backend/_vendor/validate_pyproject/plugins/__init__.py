@@ -43,9 +43,7 @@ class PluginWrapper:
     @property
     def help_text(self) -> str:
         tpl = self._load_fn.__doc__
-        if not tpl:
-            return ""
-        return Template(tpl).safe_substitute(tool=self.tool, id=self.id)
+        return Template(tpl).safe_substitute(tool=self.tool, id=self.id) if tpl else ""
 
 
 def iterate_entry_points(group=ENTRYPOINT_GROUP) -> Iterable[EntryPoint]:
@@ -64,7 +62,7 @@ def iterate_entry_points(group=ENTRYPOINT_GROUP) -> Iterable[EntryPoint]:
     else:  # pragma: no cover
         # TODO: Once Python 3.10 becomes the oldest version supported, this fallback and
         #       conditional statement can be removed.
-        entries_ = (plugin for plugin in entries.get(group, []))
+        entries_ = iter(entries.get(group, []))
     deduplicated = {e.name: e for e in sorted(entries_, key=lambda e: e.name)}
     return list(deduplicated.values())
 

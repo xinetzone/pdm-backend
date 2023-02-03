@@ -86,9 +86,7 @@ class WheelBuilder(Builder):
         if "--py-limited-api" in self.config_settings:
             py_limited_api = cast(str, self.config_settings["--py-limited-api"])
             if not re.match(PY_LIMITED_API_PATTERN, py_limited_api):
-                raise ValueError(
-                    "py-limited-api must match '%s'" % PY_LIMITED_API_PATTERN
-                )
+                raise ValueError(f"py-limited-api must match '{PY_LIMITED_API_PATTERN}'")
         if "--plat-name" in self.config_settings:
             plat_name = self.config_settings["--plat-name"]
         return python_tag, py_limited_api, plat_name
@@ -141,8 +139,10 @@ class WheelBuilder(Builder):
         records: list[RecordEntry] = []
         with tempfile.NamedTemporaryFile(suffix=".whl", delete=False) as fp:
             with zipfile.ZipFile(fp, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-                for rel_path, full_path in files:
-                    records.append(self._add_file_to_zip(zf, rel_path, full_path))
+                records.extend(
+                    self._add_file_to_zip(zf, rel_path, full_path)
+                    for rel_path, full_path in files
+                )
                 self._write_record(zf, records)
 
         target = context.dist_dir / f"{self.name_version}-{self.tag}.whl"
@@ -186,11 +186,7 @@ class WheelBuilder(Builder):
             abi_tag = "none"
             if not impl:
                 requires_python = self.config.metadata.get("requires-python", "")
-                if SpecifierSet(requires_python).contains("2.7"):
-                    impl = "py2.py3"
-                else:
-                    impl = "py3"
-
+                impl = "py2.py3" if SpecifierSet(requires_python).contains("2.7") else "py3"
         platform = platform.lower().replace("-", "_").replace(".", "_")  # type: ignore
         tag = (impl, abi_tag, platform)
         if not is_purelib:
@@ -205,8 +201,7 @@ class WheelBuilder(Builder):
         dist_info = parent / self.dist_info_name
         dist_info.mkdir(0o700, parents=True, exist_ok=True)
         meta = self.config.metadata
-        entry_points = meta.entry_points
-        if entry_points:
+        if entry_points := meta.entry_points:
             with _open_for_write(dist_info / "entry_points.txt") as f:
                 self._write_entry_points(f, entry_points)
 
@@ -290,9 +285,8 @@ class WheelBuilder(Builder):
         """Generate the metadata files for the wheel."""
         if context.kwargs.get("metadata_directory"):
             return self._iter_files_in_directory(context.kwargs["metadata_directory"])
-        else:
-            dist_info = self._write_dist_info(context.build_dir)
-            return self._iter_files_in_directory(str(dist_info))
+        dist_info = self._write_dist_info(context.build_dir)
+        return self._iter_files_in_directory(str(dist_info))
 
     def _iter_files_in_directory(self, path: str) -> Iterable[tuple[str, Path]]:
         for root, _, files in os.walk(path):

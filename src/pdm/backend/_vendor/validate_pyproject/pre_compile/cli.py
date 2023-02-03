@@ -67,14 +67,14 @@ class CliParams(NamedTuple):
 def parser_spec(plugins: Sequence[PluginWrapper]) -> Dict[str, dict]:
     common = ("version", "enable", "disable", "verbose", "very_verbose")
     cli_spec = cli.__meta__(plugins)
-    meta = {k: v.copy() for k, v in META.items()}
-    meta.update({k: cli_spec[k].copy() for k in common})
-    return meta
+    return {k: v.copy() for k, v in META.items()} | {
+        k: cli_spec[k].copy() for k in common
+    }
 
 
 def run(args: Sequence[str] = ()):
-    args = args if args else sys.argv[1:]
-    cmd = f"python -m {__package__} " + arg_join(args)
+    args = args or sys.argv[1:]
+    cmd = f"python -m {__package__} {arg_join(args)}"
     plugins = list_plugins_from_entry_points()
     desc = 'Generate files for "pre-compiling" `validate-pyproject`'
     prms = cli.parse_args(args, plugins, desc, parser_spec, CliParams)

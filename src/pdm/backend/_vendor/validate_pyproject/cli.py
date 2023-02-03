@@ -119,7 +119,7 @@ class CliParams(NamedTuple):
 def __meta__(plugins: Sequence[PluginWrapper]) -> Dict[str, dict]:
     """'Hyper parameters' to instruct :mod:`argparse` how to create the CLI"""
     meta = {k: v.copy() for k, v in META.items()}
-    meta["enable"]["choices"] = set([p.tool for p in plugins])
+    meta["enable"]["choices"] = {p.tool for p in plugins}
     return meta
 
 
@@ -259,9 +259,7 @@ def _format_plugin_help(plugin: PluginWrapper) -> str:
 
 
 def _format_file(file: io.TextIOBase) -> str:
-    if hasattr(file, "name") and file.name:  # type: ignore[attr-defined]
-        return f"file: {file.name}"  # type: ignore[attr-defined]
-    return "file"  # pragma: no cover
+    return f"file: {file.name}" if hasattr(file, "name") and file.name else "file"
 
 
 class _ExceptionGroup(Exception):

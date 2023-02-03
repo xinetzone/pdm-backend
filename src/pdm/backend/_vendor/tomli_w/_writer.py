@@ -107,9 +107,7 @@ def format_decimal(obj: Decimal) -> str:
         return "nan"
     if obj == Decimal("inf"):
         return "inf"
-    if obj == Decimal("-inf"):
-        return "-inf"
-    return str(obj)
+    return "-inf" if obj == Decimal("-inf") else str(obj)
 
 
 def format_inline_table(obj: dict, ctx: Context) -> str:
@@ -118,10 +116,8 @@ def format_inline_table(obj: dict, ctx: Context) -> str:
     if obj_id in ctx.inline_table_cache:
         return ctx.inline_table_cache[obj_id]
 
-    if not obj:
-        rendered = "{}"
-    else:
-        rendered = (
+    rendered = (
+        (
             "{ "
             + ", ".join(
                 f"{format_key_part(k)} = {format_literal(v, ctx)}"
@@ -129,6 +125,9 @@ def format_inline_table(obj: dict, ctx: Context) -> str:
             )
             + " }"
         )
+        if obj
+        else "{}"
+    )
     ctx.inline_table_cache[obj_id] = rendered
     return rendered
 
@@ -168,16 +167,11 @@ def format_string(s: str, *, allow_multiline: bool) -> str:
             char = s[pos]
         except IndexError:
             result += s[seq_start:pos]
-            if do_multiline:
-                return result + '"""'
-            return result + '"'
+            return f'{result}"""' if do_multiline else f'{result}"'
         if char in ILLEGAL_BASIC_STR_CHARS:
             result += s[seq_start:pos]
             if char in COMPACT_ESCAPES:
-                if do_multiline and char == "\n":
-                    result += "\n"
-                else:
-                    result += COMPACT_ESCAPES[char]
+                result += "\n" if do_multiline and char == "\n" else COMPACT_ESCAPES[char]
             else:
                 result += "\\u" + hex(ord(char))[2:].rjust(4, "0")
             seq_start = pos + 1
